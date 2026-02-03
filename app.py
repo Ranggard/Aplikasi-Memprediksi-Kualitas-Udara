@@ -68,7 +68,13 @@ menu = st.sidebar.radio("Pilih Menu:", ["Home", "Hasil Latih Dataset", "Prediksi
 # --- MENU 1: HOME ---
 if menu == "Home":
     st.title("🏠 Home: Klasifikasi Pencemaran Udara")
-    st.write("Aplikasi prediksi kualitas udara menggunakan algoritma **Random Forest** dengan fitur **Dynamic Retraining**.")
+
+    st.markdown("""
+    **Selamat Datang di Aplikasi Prediksi Kualitas Udara.**
+    Sistem ini menggunakan algoritma **Random Forest** untuk menentukan klasifikasi udara (Baik, Sedang, Tidak Sehat).
+    Fitur utama aplikasi ini adalah **Dynamic Retraining**, yang memungkinkan model belajar dari dataset baru 
+    yang diunggah oleh pengguna, sehingga prediksi tetap akurat untuk berbagai kota.
+    """)    
     
     st.subheader("📋 5 Data Teratas (Dataset Saat Ini)")
     st.dataframe(st.session_state.df_full.head(5), use_container_width=True)
@@ -154,3 +160,4 @@ elif menu == "Upload & Retraining":
                     st.success("Model Berhasil Diperbarui!")
                 else:
                     st.error("Format CSV tidak sesuai.")
+
