@@ -1,6 +1,4 @@
-# =======================
-# LIBRARY
-# =======================
+# ================== LIBRARY ==================
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -10,45 +8,39 @@ from sklearn.metrics import accuracy_score, confusion_matrix
 from sklearn.preprocessing import LabelEncoder
 import matplotlib.pyplot as plt
 import seaborn as sns
-from streamlit_option_menu import option_menu
+from streamlit_option_menu import option_menu 
 
-# =======================
-# KONFIGURASI
-# =======================
+# ================== KONFIGURASI ==================
 st.set_page_config(page_title="Prediksi Kualitas Udara", layout="wide")
 
 RULES = {
     'pm10': (0, 500), 'pm25': (0, 500), 'so2': (0, 800),
     'co': (0, 100), 'o3': (0, 600), 'no2': (0, 800)
 }
-
 KATEGORI_ISPU = ['BAIK', 'SEDANG', 'TIDAK SEHAT', 'SANGAT TIDAK SEHAT', 'BERBAHAYA']
 
-# =======================
-# SESSION STATE
-# =======================
+# ================== SESSION STATE ==================
 if 'model' not in st.session_state:
     st.session_state.update({
         'model': None,
         'le': None,
         'features': [],
-        'n_features': 0,
-        'n_train': 0,
-        'n_test': 0,
         'acc': 0,
-        'df_full': None
+        'df_full': None,
+        'y_test': None,
+        'y_pred': None
     })
 
-# =======================
-# FUNGSI TRAINING
-# =======================
+# ================== TRAINING FUNCTION ==================
 def train_model(df):
     try:
         df['categori'] = df['categori'].str.upper().str.strip()
 
         drop_cols = ['tanggal', 'stasiun', 'critical', 'location']
-        df_clean = df.drop(columns=[c for c in drop_cols if c in df.columns], errors='ignore')
-        df_clean = df_clean.dropna()
+        df_clean = df.drop(
+            columns=[c for c in drop_cols if c in df.columns],
+            errors='ignore'
+        ).dropna()
 
         le = LabelEncoder()
         df_clean['categori'] = le.fit_transform(df_clean['categori'])
@@ -60,32 +52,25 @@ def train_model(df):
             X, y, test_size=0.2, random_state=42
         )
 
-        model = RandomForestClassifier(
-            n_estimators=100,
-            random_state=42
-        )
-        model.fit(X_train, y_train)
+        rf = RandomForestClassifier(n_estimators=100, random_state=42)
+        rf.fit(X_train, y_train)
 
-        acc = accuracy_score(y_test, model.predict(X_test))
+        y_pred = rf.predict(X_test)
 
         st.session_state.update({
-            'model': model,
+            'model': rf,
             'le': le,
             'features': X.columns.tolist(),
-            'n_features': X.shape[1],
-            'n_train': X_train.shape[0],
-            'n_test': X_test.shape[0],
-            'acc': acc,
-            'df_full': df_clean
+            'acc': accuracy_score(y_test, y_pred),
+            'df_full': df,
+            'y_test': y_test,
+            'y_pred': y_pred
         })
         return True
-    except Exception as e:
-        st.error(f"Error training: {e}")
+    except:
         return False
 
-# =======================
-# LOAD DATA DEFAULT
-# =======================
+# ================== LOAD DATA DEFAULT ==================
 if st.session_state.model is None:
     url = "https://raw.githubusercontent.com/Ranggard/Dataset/main/Quality_Air_Jakarta.csv"
     try:
@@ -93,119 +78,83 @@ if st.session_state.model is None:
     except:
         st.error("Gagal memuat dataset default.")
 
-# =======================
-# SIDEBAR
-# =======================
+# ================== SIDEBAR ==================
 with st.sidebar:
-    st.markdown("## 🌫️ Prediksi Kualitas Udara")
-    st.caption("Random Forest Classifier")
-
+    st.markdown("<br><h2 style='text-align: center; color: #1E88E5; font-family: sans-serif;'>Prediksi Kualitas Udara</h2>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center; font-size: 0.85em; color: gray;'>Random Forest Classifier</p>", unsafe_allow_html=True)
+    st.markdown("<br>", unsafe_allow_html=True)
+    
     menu = option_menu(
-        None,
-        ["Home", "Hasil Latih", "Prediksi Jakarta", "Prediksi Kota Lain", "Retraining"],
-        icons=["house", "graph-up", "geo", "map", "arrow-repeat"],
+        menu_title=None,
+        options=["Home", "Hasil Latih", "Prediksi Jakarta", "Prediksi Kota Lain", "Retraining"],
+        icons=["house-door", "graph-up-arrow", "geo-fill", "map", "cloud-upload"],
         default_index=0
     )
 
-# =======================
-# HOME
-# =======================
+# ================== HOME (TIDAK DIUBAH) ==================
 if menu == "Home":
     st.title("🏠 Home")
-
+    
     st.markdown("""
-    Aplikasi ini menggunakan **Random Forest Classifier** untuk memprediksi
-    kategori kualitas udara berdasarkan parameter polutan.
-
-    Model mendukung **retraining dinamis**, sehingga dapat digunakan
-    untuk kota lain dengan menambahkan dataset baru.
+    Sistem ini menggunakan algoritma **Random Forest** untuk menentukan klasifikasi udara (Baik, Sedang, Tidak Sehat, Sangat Tidak Sehat, Berbahaya).
+    Fitur utama aplikasi ini adalah **Dynamic Retraining**, yang memungkinkan model belajar dari dataset baru 
+    yang diunggah oleh pengguna, sehingga prediksi tetap akurat untuk berbagai kota.
     """)
+    
+    if st.session_state.df_full is not None:
+        st.divider()
+        st.subheader("📋 Preview Data Teratas")
+        st.dataframe(st.session_state.df_full.head(5), use_container_width=True)
+        st.divider()
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            st.write("**Distribusi 5 Kategori ISPU**")
+            fig1, ax1 = plt.subplots()
+            existing_cats = [c for c in KATEGORI_ISPU if c in st.session_state.df_full['categori'].unique()]
+            sns.countplot(data=st.session_state.df_full, x='categori', order=existing_cats, palette='viridis', ax=ax1)
+            plt.xticks(rotation=45)
+            st.pyplot(fig1)
+        with col2:
+            st.write("**Rata-rata Konsentrasi Polutan**")
+            st.bar_chart(st.session_state.df_full.select_dtypes(include=[np.number]).mean())
 
-    st.divider()
-    st.subheader("📋 Contoh Data")
-    st.dataframe(st.session_state.df_full.head(), use_container_width=True)
-
-# =======================
-# HASIL LATIH
-# =======================
+# ================== HASIL LATIH (DITAMBAH CM) ==================
 elif menu == "Hasil Latih":
     st.title("📈 Hasil Latih Model")
 
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Akurasi Model", f"{st.session_state.acc*100:.2f}%")
-    col2.metric("Jumlah Fitur", st.session_state.n_features)
-    col3.metric("Data Latih / Uji", f"{st.session_state.n_train} / {st.session_state.n_test}")
+    col1, col2 = st.columns(2)
+    with col1:
+        st.metric("Akurasi Model", f"{st.session_state.acc * 100:.2f}%")
+    with col2:
+        st.metric("Jumlah Fitur", len(st.session_state.features))
 
+    st.caption(f"Fitur yang digunakan: {', '.join(st.session_state.features)}")
     st.divider()
 
-    # Feature Importance
-    feat_df = pd.DataFrame({
-        "Fitur": st.session_state.features,
-        "Importance": st.session_state.model.feature_importances_
-    }).sort_values(by="Importance", ascending=False)
+    # === Confusion Matrix ===
+    st.subheader("🧩 Confusion Matrix")
+    cm = confusion_matrix(st.session_state.y_test, st.session_state.y_pred)
 
-    st.subheader("🔎 Feature Importance")
-    st.bar_chart(feat_df.set_index("Fitur"))
-
-    st.divider()
-
-    # Confusion Matrix
-    st.subheader("📊 Confusion Matrix")
-
-    X = st.session_state.df_full[st.session_state.features]
-    y_true = st.session_state.df_full['categori']
-    y_pred = st.session_state.model.predict(X)
-
-    cm = confusion_matrix(y_true, y_pred)
-
-    fig, ax = plt.subplots(figsize=(6, 4))
+    fig, ax = plt.subplots(figsize=(6, 5))
     sns.heatmap(
-        cm, annot=True, fmt="d", cmap="Blues",
+        cm,
+        annot=True,
+        fmt="d",
+        cmap="Blues",
         xticklabels=st.session_state.le.classes_,
-        yticklabels=st.session_state.le.classes_
+        yticklabels=st.session_state.le.classes_,
+        ax=ax
     )
     ax.set_xlabel("Prediksi")
     ax.set_ylabel("Aktual")
     st.pyplot(fig)
 
-    st.caption(
-        "Mayoritas nilai berada pada diagonal utama, "
-        "menunjukkan performa klasifikasi yang baik."
-    )
+    # === Feature Importance ===
+    st.subheader("⭐ Feature Importance")
+    feat_df = pd.DataFrame({
+        "Fitur": st.session_state.features,
+        "Importance": st.session_state.model.feature_importances_
+    }).sort_values(by="Importance", ascending=False)
 
-# =======================
-# PREDIKSI
-# =======================
-elif menu in ["Prediksi Jakarta", "Prediksi Kota Lain"]:
-    st.title(f"🔍 {menu}")
-
-    with st.form("form_prediksi"):
-        cols = st.columns(len(st.session_state.features))
-        input_data = []
-
-        for i, f in enumerate(st.session_state.features):
-            with cols[i]:
-                val = st.text_input(f.upper(), "0")
-                input_data.append(val)
-
-        if st.form_submit_button("Klasifikasikan"):
-            try:
-                input_data = [float(v) for v in input_data]
-                pred = st.session_state.model.predict([input_data])
-                label = st.session_state.le.inverse_transform(pred)[0]
-                st.success(f"### Hasil Klasifikasi: **{label}**")
-            except:
-                st.error("Input harus berupa angka valid.")
-
-# =======================
-# RETRAINING
-# =======================
-elif menu == "Retraining":
-    st.title("⚙️ Retraining Model")
-
-    file = st.file_uploader("Upload file CSV", type="csv")
-    if file and st.button("Latih Ulang"):
-        if train_model(pd.read_csv(file)):
-            st.success("Model berhasil diperbarui!")
-        else:
-            st.error("Format dataset tidak sesuai.")
+    st.bar_chart(feat_df.set_index("Fitur"))
