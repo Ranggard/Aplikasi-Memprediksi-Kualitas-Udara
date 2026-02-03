@@ -70,9 +70,8 @@ if menu == "Home":
     st.title("🏠 Home: Klasifikasi Pencemaran Udara")
 
     st.markdown("""
-    **Selamat Datang di Aplikasi Prediksi Kualitas Udara.**
-    Sistem ini menggunakan algoritma **Random Forest** untuk menentukan klasifikasi udara (Baik, Sedang, Tidak Sehat).
-    Fitur utama aplikasi ini adalah **Dynamic Retraining**, yang memungkinkan model belajar dari dataset baru 
+    Sistem ini menggunakan algoritma **Random Forest** untuk menentukan klasifikasi udara (Baik, Sedang, Tidak Sehat, Sangat Tidak Sehat, Berbahaya).
+    Fitur utama aplikasi ini adalah pendekatan **Re-training**, yang memungkinkan model belajar dari dataset baru 
     yang diunggah oleh pengguna, sehingga prediksi tetap akurat untuk berbagai kota.
     """)    
     
@@ -160,4 +159,5 @@ elif menu == "Upload & Retraining":
                     st.success("Model Berhasil Diperbarui!")
                 else:
                     st.error("Format CSV tidak sesuai.")
+
 
