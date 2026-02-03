@@ -62,8 +62,7 @@ menu = st.sidebar.radio("Navigasi:", ["Home", "Hasil Latih Dataset", "Prediksi J
 if menu == "Home":
     st.title("🏠 Home: Analisis Kualitas Udara")
     st.markdown("""
-    **Selamat Datang di Aplikasi Prediksi Kualitas Udara.**
-    Sistem ini menggunakan algoritma **Random Forest** untuk menentukan klasifikasi udara (Baik, Sedang, Tidak Sehat).
+    Sistem ini menggunakan algoritma **Random Forest** untuk menentukan klasifikasi udara (Baik, Sedang, Tidak Sehat, Sangat Tidak Sehat, Berbahaya).
     Fitur utama aplikasi ini adalah **Dynamic Retraining**, yang memungkinkan model belajar dari dataset baru 
     yang diunggah oleh pengguna, sehingga prediksi tetap akurat untuk berbagai kota.
     """)
@@ -130,3 +129,4 @@ elif menu == "Upload & Retraining":
     if file and st.button("Proses Training"):
         if train_model(pd.read_csv(file)): st.success("Model diperbarui!")
         else: st.error("Format salah.")
+
