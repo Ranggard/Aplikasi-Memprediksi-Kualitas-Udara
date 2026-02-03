@@ -79,10 +79,10 @@ with st.sidebar:
 if menu == "Home":
     st.title("🏠 Home")
     
-    # Bagian Deskripsi yang tidak boleh dihapus
     st.markdown("""
-    Sistem ini menggunakan algoritma **Random Forest** untuk klasifikasi pencemaran udara berdasarkan standar ISPU. 
-    Dilengkapi dengan fitur **Dynamic Retraining** yang memungkinkan model beradaptasi dengan dataset baru secara instan.
+    Sistem ini menggunakan algoritma **Random Forest** untuk menentukan klasifikasi udara (Baik, Sedang, Tidak Sehat, Sangat Tidak Sehat, Berbahaya).
+    Fitur utama aplikasi ini adalah **Dynamic Retraining**, yang memungkinkan model belajar dari dataset baru 
+    yang diunggah oleh pengguna, sehingga prediksi tetap akurat untuk berbagai kota.
     """)
     
     if st.session_state.df_full is not None:
@@ -158,3 +158,4 @@ elif menu == "Retraining":
             st.success("Model Berhasil Diperbarui!")
         else: 
             st.error("Format data salah atau kolom 'categori' tidak ditemukan.")
+
