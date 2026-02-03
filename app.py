@@ -49,16 +49,20 @@ def train_model(df):
             'acc': accuracy_score(y_test, rf.predict(X_test)), 'df_full': df
         })
         return True
-    except: return False
+    except: 
+        return False
 
-# Load Awal
+# Load Awal (Menggunakan data Jakarta sebagai default)
 if st.session_state.model is None:
     url = "https://raw.githubusercontent.com/Ranggard/Dataset/main/Quality_Air_Jakarta.csv"
-    train_model(pd.read_csv(url))
+    try:
+        train_model(pd.read_csv(url))
+    except:
+        st.error("Gagal memuat dataset default. Silahkan unggah data di menu Retraining.")
 
-# --- 3. NAVIGASI SIDEBAR ---
+# --- 3. NAVIGASI SIDEBAR MODERN ---
 with st.sidebar:
-    st.markdown("<h1 style='text-align: center;'>AirNav System</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align: center; color: #1E88E5;'>AirNav System</h1>", unsafe_allow_html=True)
     st.markdown("---")
     menu = option_menu(
         menu_title="Main Menu", 
@@ -73,78 +77,107 @@ with st.sidebar:
             "nav-link-selected": {"background-color": "#1E88E5"},
         }
     )
+
 # --- 4. LOGIKA MENU ---
 
 if menu == "Home":
     st.title("🏠 Home: Analisis Kualitas Udara")
     st.markdown("""
-    Sistem ini menggunakan algoritma **Random Forest** untuk menentukan klasifikasi udara (Baik, Sedang, Tidak Sehat, Sangat Tidak Sehat, Berbahaya).
-    Fitur utama aplikasi ini adalah **Dynamic Retraining**, yang memungkinkan model belajar dari dataset baru 
-    yang diunggah oleh pengguna, sehingga prediksi tetap akurat untuk berbagai kota.
+    Sistem ini menggunakan algoritma **Random Forest** untuk klasifikasi pencemaran udara berdasarkan standar ISPU. 
+    Dilengkapi dengan fitur **Dynamic Retraining** yang memungkinkan model beradaptasi dengan dataset baru secara instan.
     """)
     
-    st.divider()    
-    st.subheader("📋 Preview 5 Data Teratas")
-    st.dataframe(st.session_state.df_full.head(5), use_container_width=True)
-    
-    st.divider()
-    
-    # Perbaikan: Mendefinisikan kolom sebelum digunakan
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.write("**Distribusi 5 Kategori ISPU**")
-        fig1, ax1 = plt.subplots()
-        # Filter kategori yang benar-benar ada di dataset dari 5 standar
-        existing_cats = [c for c in KATEGORI_ISPU if c in st.session_state.df_full['categori'].unique()]
-        sns.countplot(data=st.session_state.df_full, x='categori', order=existing_cats, palette='viridis', ax=ax1)
-        plt.xticks(rotation=45)
-        st.pyplot(fig1)
+    if st.session_state.df_full is not None:
+        st.divider()    
+        st.subheader("📋 Preview 5 Data Teratas")
+        st.dataframe(st.session_state.df_full.head(5), use_container_width=True)
         
-    with col2:
-        st.write("**Rata-rata Konsentrasi Polutan**")
-        numeric_df = st.session_state.df_full.select_dtypes(include=[np.number])
-        st.bar_chart(numeric_df.mean())
+        st.divider()
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.write("**Distribusi 5 Kategori ISPU**")
+            fig1, ax1 = plt.subplots()
+            # Memastikan hanya kategori yang ada di dataset yang muncul di plot
+            existing_cats = [c for c in KATEGORI_ISPU if c in st.session_state.df_full['categori'].unique()]
+            sns.countplot(data=st.session_state.df_full, x='categori', order=existing_cats, palette='viridis', ax=ax1)
+            plt.xticks(rotation=45)
+            st.pyplot(fig1)
+            
+        with col2:
+            st.write("**Rata-rata Konsentrasi Polutan**")
+            numeric_df = st.session_state.df_full.select_dtypes(include=[np.number])
+            if not numeric_df.empty:
+                st.bar_chart(numeric_df.mean())
+    else:
+        st.warning("Data belum tersedia. Silahkan lakukan retraining.")
 
-elif menu == "Hasil Latih Dataset":
+elif menu == "Hasil Latih":
     st.title("📈 Hasil Latih Model")
-    st.metric("Akurasi Model", f"{st.session_state.acc * 100:.2f}%")
-    st.write("### Kepentingan Fitur (Feature Importance)")
-    feat_df = pd.DataFrame({'Fitur': st.session_state.features, 'Value': st.session_state.model.feature_importances_}).sort_values(by='Value', ascending=False)
-    st.bar_chart(feat_df.set_index('Fitur'))
+    if st.session_state.model is not None:
+        st.metric("Akurasi Model", f"{st.session_state.acc * 100:.2f}%")
+        st.divider()
+        st.write("### Kepentingan Fitur (Feature Importance)")
+        st.info("Grafik ini menunjukkan polutan mana yang paling berpengaruh dalam prediksi model.")
+        feat_df = pd.DataFrame({
+            'Fitur': st.session_state.features, 
+            'Value': st.session_state.model.feature_importances_
+        }).sort_values(by='Value', ascending=False)
+        st.bar_chart(feat_df.set_index('Fitur'))
+    else:
+        st.error("Model belum dilatih.")
 
 elif menu in ["Prediksi Jakarta", "Prediksi Kota Lain"]:
     st.title(f"🔍 {menu}")
-    with st.form("form_pred"):
-        st.write("### Input Data Polutan")
-        inputs = {}
-        cols = st.columns(len(st.session_state.features))
-        for i, f in enumerate(st.session_state.features):
-            with cols[i]:
-                inputs[f] = st.text_input(f.upper(), placeholder="Ketik angka...")
-        
-        if st.form_submit_button("Klasifikasikan"):
-            errs, vals = [], []
-            for f, v in inputs.items():
-                try:
-                    num = float(v)
-                    low, high = RULES.get(f.lower(), (0, 1000))
-                    if not (low <= num <= high): errs.append(f"{f.upper()} di luar batas ({low}-{high})")
-                    else: vals.append(num)
-                except: errs.append(f"{f.upper()} harus angka!")
+    if st.session_state.model is not None:
+        with st.form("form_pred"):
+            st.write("### Input Data Polutan")
+            st.write("Masukkan nilai konsentrasi polutan (Placeholder menunjukkan contoh input):")
             
-            if errs: 
-                for e in errs: st.error(e)
-            else:
-                p = st.session_state.model.predict([vals])
-                st.success(f"Hasil: **{st.session_state.le.inverse_transform(p)[0]}**")
+            inputs = {}
+            # Mengatur kolom agar input berjejer rapi
+            cols = st.columns(len(st.session_state.features))
+            for i, f in enumerate(st.session_state.features):
+                with cols[i]:
+                    inputs[f] = st.text_input(f.upper(), placeholder="0.0", key=f"input_{menu}_{f}")
+            
+            submitted = st.form_submit_button("Klasifikasikan")
+            
+            if submitted:
+                errs, vals = [], []
+                for f, v in inputs.items():
+                    if v.strip() == "":
+                        errs.append(f"{f.upper()} tidak boleh kosong.")
+                    else:
+                        try:
+                            num = float(v)
+                            low, high = RULES.get(f.lower(), (0, 1000))
+                            if not (low <= num <= high): 
+                                errs.append(f"{f.upper()} di luar batas wajar ({low}-{high})")
+                            else: 
+                                vals.append(num)
+                        except ValueError: 
+                            errs.append(f"{f.upper()} harus berupa angka!")
+                
+                if errs: 
+                    for e in errs: st.error(e)
+                else:
+                    prediction = st.session_state.model.predict([vals])
+                    label = st.session_state.le.inverse_transform(prediction)[0]
+                    st.success(f"### Hasil Klasifikasi: **{label}**")
+    else:
+        st.error("Model tidak tersedia untuk prediksi.")
 
-elif menu == "Upload & Retraining":
-    st.title("⚙️ Re-training")
-    file = st.file_uploader("Upload CSV", type="csv")
-    if file and st.button("Proses Training"):
-        if train_model(pd.read_csv(file)): st.success("Model diperbarui!")
-        else: st.error("Format salah.")
-
-
-
+elif menu == "Retraining":
+    st.title("⚙️ Re-training Model")
+    st.write("Gunakan menu ini untuk memperbarui model dengan dataset baru (Format .CSV)")
+    
+    file = st.file_uploader("Pilih File CSV", type="csv")
+    if file:
+        if st.button("Mulai Proses Training"):
+            with st.spinner("Sedang melatih ulang model..."):
+                if train_model(pd.read_csv(file)): 
+                    st.success("Berhasil! Model dan visualisasi telah diperbarui sesuai dataset baru.")
+                    st.balloons()
+                else: 
+                    st.error("Format CSV tidak sesuai atau data 'categori' tidak ditemukan.")
