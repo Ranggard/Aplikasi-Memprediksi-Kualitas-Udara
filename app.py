@@ -1,3 +1,4 @@
+# Library yang digunakan
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -7,6 +8,7 @@ from sklearn.metrics import accuracy_score
 from sklearn.preprocessing import LabelEncoder
 import matplotlib.pyplot as plt
 import seaborn as sns
+from streamlit_option_menu import option_menu 
 
 # --- 1. KONFIGURASI & STANDAR ISPU ---
 st.set_page_config(page_title="Air Quality System", layout="wide")
@@ -143,5 +145,6 @@ elif menu == "Upload & Retraining":
     if file and st.button("Proses Training"):
         if train_model(pd.read_csv(file)): st.success("Model diperbarui!")
         else: st.error("Format salah.")
+
 
 
