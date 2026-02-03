@@ -5,12 +5,14 @@ import matplotlib.pyplot as plt
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, confusion_matrix, ConfusionMatrixDisplay
-import joblib
 
 # =========================
 # KONFIGURASI HALAMAN
 # =========================
-st.set_page_config(page_title="Klasifikasi Pencemaran Udara", layout="wide")
+st.set_page_config(
+    page_title="Klasifikasi Pencemaran Udara",
+    layout="wide"
+)
 
 st.title("🌫️ Sistem Klasifikasi Pencemaran Udara")
 st.caption("Random Forest dengan pendekatan Re-Training (Jakarta & Kota Lain)")
@@ -52,12 +54,44 @@ def train_model(X, y):
     return model
 
 
+def validate_input(input_dict):
+    validated = {}
+    for key, value in input_dict.items():
+        if value.strip() == "":
+            return None, f"Nilai {key.upper()} tidak boleh kosong"
+        try:
+            val = float(value)
+            if val < 0:
+                return None, f"Nilai {key.upper()} harus ≥ 0"
+            validated[key] = val
+        except ValueError:
+            return None, f"Nilai {key.upper()} harus berupa angka"
+    return validated, None
+
+
+def label_ispu(value):
+    mapping = {
+        1: "BAIK",
+        2: "SEDANG",
+        3: "TIDAK SEHAT",
+        4: "SANGAT TIDAK SEHAT",
+        5: "BERBAHAYA"
+    }
+    return mapping.get(value, "TIDAK DIKETAHUI")
+
 # =========================
-# SIDEBAR MENU
+# SIDEBAR MENU (BUKAN DROPDOWN)
 # =========================
-menu = st.sidebar.selectbox(
-    "Menu",
-    ["Dashboard", "Prediksi Kota Jakarta", "Prediksi Kota Lain", "Upload Dataset & Re-Training"]
+st.sidebar.title("📌 Menu Navigasi")
+
+menu = st.sidebar.radio(
+    "",
+    (
+        "Dashboard",
+        "Prediksi Kota Jakarta",
+        "Prediksi Kota Lain",
+        "Upload Dataset & Re-Training"
+    )
 )
 
 # =========================
@@ -91,12 +125,14 @@ if menu == "Dashboard":
         st.metric("Akurasi Model (Jakarta)", f"{acc*100:.2f}%")
 
     with col2:
-        st.write("Jumlah Data:")
-        st.write(df.shape)
+        st.metric("Jumlah Data", df.shape[0])
 
     st.subheader("Distribusi Kategori ISPU")
+
     fig, ax = plt.subplots()
     df['categori'].value_counts().sort_index().plot(kind='bar', ax=ax)
+    ax.set_xlabel("Kategori ISPU")
+    ax.set_ylabel("Jumlah Data")
     st.pyplot(fig)
 
 # =========================
@@ -109,33 +145,50 @@ elif menu == "Prediksi Kota Jakarta":
     cols = st.columns(len(FEATURES))
 
     for i, feature in enumerate(FEATURES):
-        input_data[feature] = cols[i].number_input(feature.upper(), min_value=0.0)
+        input_data[feature] = cols[i].text_input(
+            feature.upper(),
+            placeholder="Masukkan angka (≥ 0)"
+        )
 
-    if st.button("Prediksi"):
-        input_df = pd.DataFrame([input_data])
-        result = model.predict(input_df)[0]
+    if st.button("Prediksi Jakarta"):
+        validated_input, error = validate_input(input_data)
 
-        st.success(f"Hasil Kategori ISPU: {result}")
+        if error:
+            st.error(error)
+        else:
+            input_df = pd.DataFrame([validated_input])
+            result = model.predict(input_df)[0]
+            st.success(f"Hasil Kategori ISPU: **{label_ispu(result)}**")
 
 # =========================
 # PREDIKSI KOTA LAIN
 # =========================
 elif menu == "Prediksi Kota Lain":
-    st.subheader("🌆 Prediksi Kota Lain (Tanpa Re-Training)")
+    st.subheader("🌆 Prediksi Kualitas Udara Kota Lain")
 
-    st.warning("Akurasi dapat menurun karena model hanya dilatih menggunakan data Jakarta")
+    st.warning(
+        "Model hanya dilatih menggunakan data Jakarta. "
+        "Akurasi pada kota lain dapat menurun."
+    )
 
     input_data = {}
     cols = st.columns(len(FEATURES))
 
     for i, feature in enumerate(FEATURES):
-        input_data[feature] = cols[i].number_input(feature.upper(), min_value=0.0)
+        input_data[feature] = cols[i].text_input(
+            feature.upper(),
+            placeholder="Masukkan angka (≥ 0)"
+        )
 
     if st.button("Prediksi Kota Lain"):
-        input_df = pd.DataFrame([input_data])
-        result = model.predict(input_df)[0]
+        validated_input, error = validate_input(input_data)
 
-        st.info(f"Hasil Prediksi ISPU Kota Lain: {result}")
+        if error:
+            st.error(error)
+        else:
+            input_df = pd.DataFrame([validated_input])
+            result = model.predict(input_df)[0]
+            st.info(f"Hasil Prediksi ISPU Kota Lain: **{label_ispu(result)}**")
 
 # =========================
 # RE-TRAINING
@@ -143,7 +196,10 @@ elif menu == "Prediksi Kota Lain":
 elif menu == "Upload Dataset & Re-Training":
     st.subheader("🔁 Upload Dataset & Re-Training Model")
 
-    uploaded_file = st.file_uploader("Upload dataset kota lain (.csv)", type=["csv"])
+    uploaded_file = st.file_uploader(
+        "Upload dataset kota lain (.csv)",
+        type=["csv"]
+    )
 
     if uploaded_file:
         df_new = pd.read_csv(uploaded_file)
@@ -156,7 +212,9 @@ elif menu == "Upload Dataset & Re-Training":
         y_new_pred = model_retrain.predict(X_new)
         acc_new = accuracy_score(y_new, y_new_pred)
 
-        st.success(f"Re-Training selesai | Akurasi dataset baru: {acc_new*100:.2f}%")
+        st.success(
+            f"Re-Training selesai | Akurasi dataset baru: {acc_new*100:.2f}%"
+        )
 
         fig, ax = plt.subplots()
         cm = confusion_matrix(y_new, y_new_pred)
