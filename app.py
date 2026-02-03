@@ -2,127 +2,115 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import confusion_matrix, accuracy_score, classification_report
 from sklearn.preprocessing import LabelEncoder
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-# --- KONFIGURASI HALAMAN ---
-st.set_page_config(page_title="Prediksi Kualitas Udara", layout="wide")
+# --- INISIALISASI SESSION STATE ---
+if 'model' not in st.session_state:
+    st.session_state.model = None
+    st.session_state.le = None
+    st.session_state.features = []
+    st.session_state.metrics = {}
+    st.session_state.df_train = None
 
-# --- FUNGSI PREPROCESSING ---
-def clean_data(df):
-    # Hapus kolom yang tidak diperlukan untuk model
+# --- FUNGSI PREPROCESSING & TRAINING ---
+def train_process(df):
+    # Cleaning
     drop_cols = ['tanggal', 'stasiun', 'critical', 'location']
-    df = df.drop(columns=[c for c in drop_cols if c in df.columns], errors='ignore')
-    df = df.dropna()
+    df_clean = df.drop(columns=[c for c in drop_cols if c in df.columns], errors='ignore').dropna()
     
-    # Label Encoding untuk target 'categori'
     le = LabelEncoder()
-    if 'categori' in df.columns:
-        df['categori'] = le.fit_transform(df['categori'])
-        return df, le
-    return None, None
-
-# --- LOAD DATA AWAL (JAKARTA) ---
-URL_JKT = "https://raw.githubusercontent.com/Ranggard/Dataset/main/Quality_Air_Jakarta.csv"
-
-@st.cache_resource
-def initial_training():
-    df_raw = pd.read_csv(URL_JKT)
-    df_clean, le = clean_data(df_raw)
+    df_clean['categori'] = le.fit_transform(df_clean['categori'])
     
-    X = df_clean.drop(columns=['categori'])
+    X = df_clean.select_dtypes(include=[np.number]).drop(columns=['categori'], errors='ignore')
     y = df_clean['categori']
     
-    model = RandomForestClassifier(n_estimators=100, random_state=42)
-    model.fit(X, y)
-    return model, le, X.columns.tolist(), df_raw
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    
+    rf = RandomForestClassifier(n_estimators=100, random_state=42)
+    rf.fit(X_train, y_train)
+    
+    # Simpan hasil ke session state
+    y_pred = rf.predict(X_test)
+    st.session_state.model = rf
+    st.session_state.le = le
+    st.session_state.features = X.columns.tolist()
+    st.session_state.df_train = df
+    st.session_state.metrics = {
+        'accuracy': accuracy_score(y_test, y_pred),
+        'conf_matrix': confusion_matrix(y_test, y_pred),
+        'report': classification_report(y_test, y_pred, target_names=le.classes_, output_dict=True),
+        'feat_importances': rf.feature_importances_
+    }
 
-model, le, features, raw_data_jkt = initial_training()
+# --- LOAD DATA AWAL (JAKARTA) ---
+if st.session_state.model is None:
+    URL_JKT = "https://raw.githubusercontent.com/Ranggard/Dataset/main/Quality_Air_Jakarta.csv"
+    train_process(pd.read_csv(URL_JKT))
 
-# --- SIDEBAR MENU (RADIO BUTTONS) ---
-st.sidebar.title("Navigasi")
-menu = st.sidebar.radio(
-    "Pilih Menu:",
-    ["Beranda & Analisis Data", "Prediksi Kota Jakarta", "Prediksi Kota Lainnya", "Retraining Model"]
-)
+# --- SIDEBAR NAVIGASI ---
+st.sidebar.title("Main Menu")
+menu = st.sidebar.radio("Pilih Halaman:", 
+    ["Beranda", "Hasil Latih Dataset", "Prediksi Jakarta", "Prediksi Kota Lain", "Upload & Retraining"])
 
 # --- LOGIKA MENU ---
 
-if menu == "Beranda & Analisis Data":
-    st.title("📊 Analisis Data Kualitas Udara (Baseline: Jakarta)")
-    st.write("Visualisasi data historis Jakarta yang digunakan untuk pelatihan awal model.")
+if menu == "Beranda":
+    st.title("🍃 Air Quality Classifier")
+    st.write("Selamat datang! Sistem ini menggunakan **Random Forest** untuk mengklasifikasikan tingkat pencemaran udara.")
+    st.image("https://img.freepik.com/free-vector/city-with-air-pollution-concept_23-2148710771.jpg", width=500)
+    st.write("Gunakan menu di samping untuk melihat hasil analisis atau melakukan prediksi.")
+
+elif menu == "Hasil Latih Dataset":
+    st.title("📈 Hasil Evaluasi Model")
+    m = st.session_state.metrics
     
+    # Metrik Utama
     col1, col2 = st.columns(2)
-    with col1:
-        st.write("### 5 Data Teratas")
-        st.dataframe(raw_data_jkt.head())
+    col1.metric("Akurasi Model", f"{m['accuracy']*100:.2f}%")
+    col2.metric("Jumlah Fitur", len(st.session_state.features))
     
-    with col2:
-        st.write("### Distribusi Kategori")
-        fig, ax = plt.subplots()
-        sns.countplot(data=raw_data_jkt, x='categori', ax=ax)
-        plt.xticks(rotation=45)
-        st.pyplot(fig)
+    # Visualisasi 1: Confusion Matrix
+    st.write("### Confusion Matrix")
+    fig, ax = plt.subplots(figsize=(8,6))
+    sns.heatmap(m['conf_matrix'], annot=True, fmt='d', cmap='Blues', 
+                xticklabels=st.session_state.le.classes_, yticklabels=st.session_state.le.classes_)
+    plt.xlabel("Prediksi")
+    plt.ylabel("Aktual")
+    st.pyplot(fig)
+    
+    # Visualisasi 2: Feature Importance
+    st.write("### Variabel Paling Berpengaruh (Feature Importance)")
+    feat_df = pd.DataFrame({'Polutan': st.session_state.features, 'Importance': m['feat_importances']})
+    st.bar_chart(feat_df.set_index('Polutan'))
 
-elif menu == "Prediksi Kota Jakarta":
+elif menu == "Prediksi Jakarta":
     st.title("🏙️ Prediksi Wilayah Jakarta")
-    st.info("Model menggunakan parameter yang sudah dioptimasi untuk data Jakarta.")
+    st.info("Prediksi menggunakan dataset rujukan awal Jakarta.")
     
-    inputs = {}
-    cols = st.columns(3)
-    for i, f in enumerate(features):
-        with cols[i % 3]:
-            inputs[f] = st.number_input(f"Masukkan {f}", value=0.0)
-            
-    if st.button("Klasifikasikan Sekarang"):
-        input_array = np.array([list(inputs.values())])
-        prediction = model.predict(input_array)
-        hasil = le.inverse_transform(prediction)
-        st.success(f"Hasil Prediksi: **{hasil[0]}**")
+    inputs = [st.number_input(f"Nilai {f}", value=0.0) for f in st.session_state.features]
+    if st.button("Proses Prediksi"):
+        res = st.session_state.model.predict([inputs])
+        st.success(f"Kualitas Udara: **{st.session_state.le.inverse_transform(res)[0]}**")
 
-elif menu == "Prediksi Kota Lainnya":
-    st.title("🌍 Prediksi Wilayah Lain")
-    st.warning("⚠️ Perhatian: Akurasi mungkin tidak optimal karena model belum mengenal pola polusi di kota ini.")
-    
-    inputs = {}
-    cols = st.columns(3)
-    for i, f in enumerate(features):
-        with cols[i % 3]:
-            inputs[f] = st.number_input(f"Input {f} (Kota Lain)", value=0.0)
-            
-    if st.button("Prediksi"):
-        input_array = np.array([list(inputs.values())])
-        prediction = model.predict(input_array)
-        hasil = le.inverse_transform(prediction)
-        st.info(f"Hasil Prediksi Sementara: **{hasil[0]}**")
+elif menu == "Prediksi Kota Lain":
+    st.title("🌍 Prediksi Kota Lain")
+    st.warning("Catatan: Gunakan menu 'Upload' jika ingin akurasi lebih tinggi untuk kota spesifik.")
+    inputs = [st.number_input(f"Input {f}", key=f"other_{f}") for f in st.session_state.features]
+    if st.button("Cek Prediksi"):
+        res = st.session_state.model.predict([inputs])
+        st.info(f"Hasil: **{st.session_state.le.inverse_transform(res)[0]}**")
 
-elif menu == "Retraining Model":
-    st.title("⚙️ Re-training Model (Update Model)")
-    st.write("Upload dataset baru untuk melatih ulang algoritma Random Forest agar sesuai dengan wilayah baru.")
-    
-    uploaded_file = st.file_uploader("Upload File CSV Kota Anda", type="csv")
-    
-    if uploaded_file is not None:
-        new_df_raw = pd.read_csv(uploaded_file)
-        st.write("Data Berhasil Diunggah:")
-        st.dataframe(new_df_raw.head(3))
-        
-        if st.button("Mulai Proses Training Ulang"):
-            with st.spinner("Sedang memproses..."):
-                new_df_clean, new_le = clean_data(new_df_raw)
-                if new_df_clean is not None:
-                    X_new = new_df_clean.drop(columns=['categori'])
-                    y_new = new_df_clean['categori']
-                    
-                    # Training ulang
-                    new_model = RandomForestClassifier(n_estimators=100)
-                    new_model.fit(X_new, y_new)
-                    
-                    st.success(f"Model Berhasil Diperbarui dengan data baru!")
-                    
-                    # Visualisasi Feature Importance
-                    st.write("### Polutan Paling Berpengaruh di Wilayah Baru")
-                    importances = new_model.feature_importances_
-                    feat_df = pd.DataFrame({'Polutan': X_new.columns, 'Importance': importances})
-                    st.bar_chart(feat_df.set_index('Polutan'))
+elif menu == "Upload & Retraining":
+    st.title("⚙️ Adaptasi Model Baru")
+    u_file = st.file_uploader("Upload CSV Kota Lain", type="csv")
+    if u_file:
+        new_df = pd.read_csv(u_file)
+        if st.button("Mulai Latih Ulang (Retrain)"):
+            with st.spinner("Menyesuaikan model dengan data baru..."):
+                train_process(new_df)
+                st.balloons()
+                st.success("Model berhasil diperbarui! Silahkan cek menu 'Hasil Latih Dataset'.")
