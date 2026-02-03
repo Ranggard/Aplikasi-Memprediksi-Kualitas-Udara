@@ -84,7 +84,7 @@ if menu == "Home":
     st.title("🏠 Home: Analisis Kualitas Udara")
     st.markdown("""
     Sistem ini menggunakan algoritma **Random Forest** untuk klasifikasi pencemaran udara berdasarkan standar ISPU. 
-    Dilengkapi dengan fitur **Dynamic Retraining** yang memungkinkan model beradaptasi dengan dataset baru secara instan.
+    Dilengkapi dengan fitur **Retraining** yang memungkinkan model beradaptasi dengan dataset baru secara instan.
     """)
     
     if st.session_state.df_full is not None:
@@ -181,3 +181,4 @@ elif menu == "Retraining":
                     st.balloons()
                 else: 
                     st.error("Format CSV tidak sesuai atau data 'categori' tidak ditemukan.")
+
