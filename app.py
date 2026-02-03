@@ -55,8 +55,22 @@ if st.session_state.model is None:
     train_model(pd.read_csv(url))
 
 # --- 3. NAVIGASI SIDEBAR ---
-menu = st.sidebar.radio("Navigasi:", ["Home", "Hasil Latih Dataset", "Prediksi Jakarta", "Prediksi Kota Lain", "Upload & Retraining"])
-
+with st.sidebar:
+    st.markdown("<h1 style='text-align: center;'>AirNav System</h1>", unsafe_allow_html=True)
+    st.markdown("---")
+    menu = option_menu(
+        menu_title="Main Menu", 
+        options=["Home", "Hasil Latih", "Prediksi Jakarta", "Prediksi Kota Lain", "Retraining"],
+        icons=["house", "bar-chart-line", "building", "geo-alt", "cloud-arrow-up"],
+        menu_icon="cast",
+        default_index=0,
+        styles={
+            "container": {"padding": "5!important", "background-color": "#fafafa"},
+            "icon": {"color": "#1E88E5", "font-size": "20px"}, 
+            "nav-link": {"font-size": "16px", "text-align": "left", "margin": "10px", "--hover-color": "#eee"},
+            "nav-link-selected": {"background-color": "#1E88E5"},
+        }
+    )
 # --- 4. LOGIKA MENU ---
 
 if menu == "Home":
@@ -129,4 +143,5 @@ elif menu == "Upload & Retraining":
     if file and st.button("Proses Training"):
         if train_model(pd.read_csv(file)): st.success("Model diperbarui!")
         else: st.error("Format salah.")
+
 
