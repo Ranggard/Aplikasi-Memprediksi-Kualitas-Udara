@@ -96,7 +96,7 @@ if menu == "Home":
     st.markdown("""
     Sistem ini menggunakan algoritma **Random Forest** untuk menentukan klasifikasi udara
     (Baik, Sedang, Tidak Sehat, Sangat Tidak Sehat, Berbahaya).
-    Fitur utama aplikasi ini adalah **Dynamic Retraining**, yang memungkinkan model belajar
+    Fitur utama aplikasi ini adalah **Retraining**, yang memungkinkan model belajar
     dari dataset baru yang diunggah oleh pengguna.
     """)
 
@@ -235,3 +235,4 @@ elif menu == "Retraining":
             st.success("Model Berhasil Diperbarui!")
         else:
             st.error("Format data salah atau kolom 'categori' tidak ditemukan.")
+
